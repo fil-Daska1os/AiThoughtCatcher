@@ -9,7 +9,9 @@ if (!admin.apps.length) {
 const db = admin.firestore();
 
 // Initialize Gemini API
-const GEMINI_API_KEY = "AIzaSyCi9k3KcIi7qeH6iFEZ8iJE0ei8XFA44kc";
+// Initialize Gemini API
+// Initialize Gemini API
+const GEMINI_API_KEY = "AIzaSyAkNl3LcYuieSsOToPFXlAjmLxcPJztBVI"; // Valid User Key
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 
 // 1. Process Thought (Firestore Trigger)
@@ -152,9 +154,9 @@ exports.processBatchRequest = functions.firestore
         const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
         try {
-            // Get all pending thoughts (not filtered by userId to catch legacy ones)
+            // Get all pending or failed thoughts (not filtered by userId to catch legacy ones)
             const pendingSnapshot = await db.collection('user_thoughts')
-                .where('ai_status', '==', 'pending')
+                .where('ai_status', 'in', ['pending', 'failed'])
                 .get();
 
             let processed = 0;
@@ -230,3 +232,90 @@ exports.processBatchRequest = functions.firestore
             return null;
         }
     });
+
+// 4. Process Audio Thought (Storage Trigger)
+exports.processAudioThought = functions.storage.bucket("thoughtcatcher-42925.firebasestorage.app").object().onFinalize(async (object) => {
+    const filePath = object.name; // e.g., user_audio/{userId}/{timestamp}.webm
+    const contentType = object.contentType;
+
+    // Only process audio files in the user_audio folder
+    if (!contentType.startsWith('audio/') || !filePath.startsWith('user_audio/')) {
+        return console.log('This is not an audio file or not in user_audio folder.');
+    }
+
+    const bucket = admin.storage().bucket(object.bucket);
+    const fileName = filePath.split('/').pop();
+    const userId = filePath.split('/')[1]; // Extract userId from path
+
+    console.log(`Processing audio file: ${filePath} for user: ${userId}`);
+
+    try {
+        // 1. Download file to memory (buffer)
+        const [buffer] = await bucket.file(filePath).download();
+
+        // 2. Prepare for Gemini
+        const audioBase64 = buffer.toString('base64');
+        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+
+        const prompt = `
+            You are an expert transcriber and assistant.
+            1. Transcribe the AUDIO strictly verbatim (capture every word).
+            2. Then, analyze the thought and provide a title, summary, and keywords.
+            
+            Return ONLY a JSON object with this exact structure:
+            {
+              "raw_text": "The full verbatim transcription of the audio...",
+              "ai_title": "A concise catchy title",
+              "ai_summary": "A 2-3 sentence summary",
+              "keywords": ["tag1", "tag2", "tag3"]
+            }
+        `;
+
+        const part = {
+            inlineData: {
+                mimeType: contentType,
+                data: audioBase64
+            }
+        };
+
+        const result = await model.generateContent([prompt, part]);
+        const response = await result.response;
+        const text = response.text();
+
+        // Parse JSON
+        const jsonStr = text.replace(/```json/g, '').replace(/```/g, '').trim();
+        const aiData = JSON.parse(jsonStr);
+
+        // 3. Save to Firestore
+        await db.collection('user_thoughts').add({
+            userId: userId,
+            raw_text: aiData.raw_text,
+            ai_title: aiData.ai_title,
+            ai_summary: aiData.ai_summary,
+            keywords: aiData.keywords,
+            ai_status: 'processed',
+            timestamp: admin.firestore.FieldValue.serverTimestamp(),
+            audio_url: `gs://${object.bucket}/${filePath}`, // Reference to audio
+            type: 'audio_note'
+        });
+
+        console.log(`Successfully processed audio thought for user ${userId}`);
+        return null;
+
+    } catch (error) {
+        console.error("Error processing audio thought:", error);
+        // We could create a "failed" doc if we want, but for now just logging.
+        // Creating a failed doc is better for UX.
+        await db.collection('user_thoughts').add({
+            userId: userId,
+            raw_text: "Audio processing failed. Please try again.",
+            ai_title: "Error Processing Audio",
+            ai_summary: error.message,
+            ai_status: 'failed',
+            timestamp: admin.firestore.FieldValue.serverTimestamp(),
+            audio_url: `gs://${object.bucket}/${filePath}`,
+            type: 'audio_note'
+        });
+        return null;
+    }
+});

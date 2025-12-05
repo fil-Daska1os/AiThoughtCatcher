@@ -3,6 +3,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 import { getFirestore, collection, addDoc, query, where, orderBy, onSnapshot, serverTimestamp, updateDoc, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { getAuth, signInAnonymously, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-functions.js";
+import { getStorage, ref, uploadBytes } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
 
 // Firebase Configuration (Placeholder - User needs to fill this)
 const firebaseConfig = {
@@ -16,14 +17,15 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
-let app, db, auth, functions;
+let app, db, auth, functions, storage;
 let currentUser = null;
 
 try {
     app = initializeApp(firebaseConfig);
     db = getFirestore(app);
     auth = getAuth(app);
-    functions = getFunctions(app, 'us-central1');
+    functions = getFunctions(app);
+    storage = getStorage(app); // Init Storage, 'us-central1');
 } catch (e) {
     console.error("Firebase initialization failed. Make sure to update config.", e);
 }
@@ -56,104 +58,124 @@ const signoutBtn = document.getElementById('signout-btn');
 // Auth Provider
 const googleProvider = new GoogleAuthProvider();
 
-// State
+// --- ROBUST SPEECH RECOGNITION (Pulse / Auto-Restart Mode) ---
+// The "Looping" Method: Clears Android buffer on every pause to prevent "Infinite Echo".
+// User approved this logic as the functional fix.
+
+function checkIsMobile() {
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+}
+
 // State
 let isRecording = false;
 let recognition = null;
-let finalTranscript = '';
-let lastSpeechTime = 0;
+let accumulatedTranscript = '';
+let sessionTranscript = '';
 
 // Initialize Speech Recognition
 if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     recognition = new SpeechRecognition();
-    recognition.continuous = true;
+
+    // PULSE MODE: continuous = false.
+    // We handle the "loop" manually in onend.
+    recognition.continuous = false;
     recognition.interimResults = true;
     recognition.lang = 'en-US';
 
     recognition.onstart = () => {
-        isRecording = true;
-        finalTranscript = '';
-        lastSpeechTime = Date.now();
-        updateRecordingUI(true);
+        // Only update UI on fresh start, not every pulse
+        if (isRecording) {
+            updateRecordingUI(true);
+        }
     };
 
     recognition.onend = () => {
-        isRecording = false;
-        updateRecordingUI(false);
-        if (finalTranscript.trim()) {
-            saveThought(finalTranscript);
+        // 1. Capture what we got
+        if (sessionTranscript.trim()) {
+            accumulatedTranscript += (accumulatedTranscript ? ' ' : '') + sessionTranscript.trim();
+        }
+        sessionTranscript = ''; // Clear buffer
+
+        // 2. Decide: Stop or Loop?
+        if (isRecording) {
+            // LOOP: User is still "recording", so we restart immediately.
+            try {
+                recognition.start();
+            } catch (e) {
+                console.log("Pulse restart failed", e);
+                isRecording = false;
+                updateRecordingUI(false);
+            }
+        } else {
+            // STOP: User tapped button. Save.
+            if (accumulatedTranscript.trim()) {
+                saveThought(accumulatedTranscript);
+            }
+            accumulatedTranscript = '';
+            updateRecordingUI(false);
         }
     };
 
     recognition.onresult = (event) => {
-        let interimTranscript = '';
-        const now = Date.now();
+        let interimText = '';
+        let finalChunk = '';
 
         for (let i = event.resultIndex; i < event.results.length; ++i) {
             let chunk = event.results[i][0].transcript;
 
-            // Normalize keywords (case insensitive)
             chunk = chunk.replace(/ comma/gi, ',');
             chunk = chunk.replace(/ full stop/gi, '.');
             chunk = chunk.replace(/ period/gi, '.');
 
             if (event.results[i].isFinal) {
-                // Pause detection logic
-                const timeSinceLast = now - lastSpeechTime;
-
-                // Only add punctuation if it's not the very first chunk
-                if (finalTranscript.length > 0) {
-                    if (timeSinceLast > 5000) {
-                        // > 5 seconds: Full stop (if not already there)
-                        if (!finalTranscript.trim().endsWith('.')) {
-                            finalTranscript += '. ';
-                        }
-                    } else if (timeSinceLast > 3000) {
-                        // > 3 seconds: Comma (if not already ending in punctuation)
-                        if (!/[.,!?]$/.test(finalTranscript.trim())) {
-                            finalTranscript += ', ';
-                        }
-                    } else {
-                        // Normal spacing
-                        finalTranscript += ' ';
-                    }
-                }
-
-                // Capitalize first letter if previous was full stop or start
-                if (finalTranscript.length === 0 || finalTranscript.trim().endsWith('.')) {
-                    chunk = chunk.charAt(0).toUpperCase() + chunk.slice(1);
-                }
-
-                finalTranscript += chunk;
-                lastSpeechTime = now;
+                finalChunk += chunk;
             } else {
-                interimTranscript += chunk;
+                interimText += chunk;
             }
         }
 
-        statusText.textContent = finalTranscript + interimTranscript || "Listening...";
+        if (finalChunk) {
+            sessionTranscript += (sessionTranscript ? ' ' : '') + finalChunk;
+            // Capitalize
+            if (sessionTranscript.length > 0) {
+                sessionTranscript = sessionTranscript.charAt(0).toUpperCase() + sessionTranscript.slice(1);
+            }
+        }
+
+        const fullDisplay = (accumulatedTranscript + ' ' + sessionTranscript + ' ' + interimText).trim();
+        statusText.textContent = fullDisplay || "Listening...";
     };
 
     recognition.onerror = (event) => {
-        console.error("Speech recognition error", event.error);
-        if (event.error !== 'no-speech') {
-            isRecording = false;
-            updateRecordingUI(false);
-            statusText.textContent = "Error: " + event.error;
+        if (event.error === 'no-speech') return; // Ignore silence
+
+        console.error("Speech error", event.error);
+        if (event.error !== 'aborted') {
+            // If fatal, stop. Use hard refresh if needed.
+            // But for Pulse, we try to keep going if possible? 
+            // Ideally we let onend handle the restart.
+            // Only stop UI on hard/fatal errors that prevent restart.
         }
     };
 } else {
-    alert("Voice capture is not supported in this browser. Please use Chrome or Safari.");
+    alert("Voice not supported. Use Chrome.");
     micButton.disabled = true;
 }
 
 // UI Event Listeners
 micButton.addEventListener('click', () => {
     if (!recognition) return;
+
     if (isRecording) {
-        recognition.stop(); // This triggers onend, which saves the thought
+        // STOP
+        isRecording = false; // Flag prevents loop in onend
+        recognition.stop();
     } else {
+        // START
+        isRecording = true;
+        accumulatedTranscript = '';
+        sessionTranscript = '';
         recognition.start();
     }
 });
