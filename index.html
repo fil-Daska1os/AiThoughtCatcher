@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Thought Catcher</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <!-- Material Icons -->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="logo">
+                <span class="material-icons-round">psychology</span>
+                <h1>Thought Catcher</h1>
+            </div>
+            <div class="header-actions">
+                <button id="batch-process-btn" class="icon-btn" title="Process Thoughts Now">
+                    <span class="material-icons-round">auto_awesome</span>
+                </button>
+                <button id="settings-btn" class="icon-btn" title="Settings">
+                    <span class="material-icons-round">settings</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Thought Feed -->
+            <div id="thought-feed" class="thought-feed">
+                <!-- Thoughts will be injected here via JS -->
+                <div class="empty-state">
+                    <p>No thoughts captured yet.</p>
+                    <p>Tap the mic to start thinking.</p>
+                </div>
+            </div>
+        </main>
+
+        <!-- Voice Capture Interface (Fixed Bottom) -->
+        <div class="voice-capture-container">
+            <div id="recording-status" class="recording-status hidden">
+                <div class="pulse-ring"></div>
+                <span id="status-text">Listening...</span>
+            </div>
+            <button id="mic-button" class="mic-button">
+                <span class="material-icons-round">mic</span>
+            </button>
+        </div>
+
+        <!-- Chat Interface (Overlay/Drawer) -->
+        <div id="chat-drawer" class="chat-drawer">
+            <div class="chat-header">
+                <h2>Ask Your Thoughts</h2>
+                <button id="close-chat-btn" class="icon-btn">
+                    <span class="material-icons-round">close</span>
+                </button>
+            </div>
+            <div id="chat-messages" class="chat-messages">
+                <!-- Chat messages go here -->
+                <div class="message system">
+                    <p>Hi! I can help you explore your captured thoughts. Ask me anything!</p>
+                </div>
+            </div>
+            <div class="chat-input-area">
+                <input type="text" id="chat-input" placeholder="Ask a question..." autocomplete="off">
+                <button id="send-chat-btn" class="icon-btn primary">
+                    <span class="material-icons-round">send</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Floating Chat Toggle -->
+        <button id="chat-toggle-btn" class="chat-toggle-btn">
+            <span class="material-icons-round">chat_bubble</span>
+        </button>
+
+        <!-- Settings Modal -->
+        <div id="settings-modal" class="modal hidden">
+            <div class="modal-content">
+                <h3>Settings</h3>
+                <div class="setting-item">
+                    <label>AI Processing Schedule</label>
+                    <select id="processing-schedule">
+                        <option value="immediate">Immediately</option>
+                        <option value="3">Every 3 Hours</option>
+                        <option value="6">Every 6 Hours</option>
+                        <option value="12">Every 12 Hours</option>
+                        <option value="24">Every 24 Hours</option>
+                    </select>
+                </div>
+                <div class="modal-actions">
+                    <button id="close-settings-btn" class="btn-text">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDKs -->
+    <script type="module" src="app.js"></script>
+</body>
+</html>
