@@ -12,7 +12,7 @@ const db = admin.firestore();
 const GEMINI_API_KEY = "AIzaSyCi9k3KcIi7qeH6iFEZ8iJE0ei8XFA44kc";
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 
-// 1. Process Thought (Firestore Trigger) - 1st Gen
+// 1. Process Thought (Firestore Trigger)
 exports.processThought = functions.firestore
     .document("user_thoughts/{thoughtId}")
     .onCreate(async (snap, context) => {
@@ -62,147 +62,171 @@ exports.processThought = functions.firestore
         }
     });
 
-// 2. Chat Query (HTTPS Callable) - 1st Gen with explicit CORS
-exports.queryThoughts = functions.https.onCall(async (data, context) => {
-    const uid = context.auth?.uid;
-    const userQuery = data.query;
+// 2. Chat Query (Firestore Trigger) - Processes chat requests written to Firestore
+exports.processChatQuery = functions.firestore
+    .document("chat_queries/{queryId}")
+    .onCreate(async (snap, context) => {
+        const data = snap.data();
+        const userQuery = data.query;
+        const userId = data.userId;
 
-    if (!uid) throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
-
-    try {
-        const thoughtsSnapshot = await db.collection('user_thoughts')
-            .where('userId', '==', uid)
-            .orderBy('timestamp', 'desc')
-            .limit(20)
-            .get();
-
-        const thoughtsContext = thoughtsSnapshot.docs.map(doc => {
-            const d = doc.data();
-            return `- [${d.timestamp?.toDate?.()?.toISOString() || 'Unknown'}] ${d.ai_title || 'Untitled'}: ${d.ai_summary || d.raw_text} (Keywords: ${(d.keywords || []).join(', ')})`;
-        }).join('\n');
-
-        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-
-        const prompt = `
-            You are an AI assistant helping a user explore their captured thoughts.
-            
-            User Query: "${userQuery}"
-
-            Here are the user's recent thoughts:
-            ${thoughtsContext}
-
-            Instructions:
-            1. Answer the user's question based ONLY on the provided thoughts.
-            2. If the answer isn't in the thoughts, say so politely.
-            3. Reference specific thoughts by title if relevant.
-            4. Be helpful and conversational.
-        `;
-
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-
-        return { answer: response.text() };
-
-    } catch (error) {
-        console.error("Error in chat query:", error);
-        throw new functions.https.HttpsError('internal', 'Failed to generate answer');
-    }
-});
-
-// 3. Batch Processor - Using onRequest with manual CORS for better control
-exports.batchProcessThoughts = functions.https.onRequest(async (req, res) => {
-    // CORS headers
-    res.set('Access-Control-Allow-Origin', '*');
-    res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-
-    // Handle preflight
-    if (req.method === 'OPTIONS') {
-        res.status(204).send('');
-        return;
-    }
-
-    try {
-        // Verify Firebase Auth token
-        const authHeader = req.headers.authorization;
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            res.status(401).json({ error: 'No auth token provided' });
-            return;
+        if (!userQuery || !userId) {
+            await snap.ref.update({ status: 'failed', error: 'Missing query or userId' });
+            return null;
         }
 
-        const idToken = authHeader.split('Bearer ')[1];
-        let decodedToken;
         try {
-            decodedToken = await admin.auth().verifyIdToken(idToken);
-        } catch (e) {
-            res.status(401).json({ error: 'Invalid auth token' });
-            return;
+            // Get user's processed thoughts
+            const thoughtsSnapshot = await db.collection('user_thoughts')
+                .where('userId', '==', userId)
+                .where('ai_status', '==', 'processed')
+                .orderBy('timestamp', 'desc')
+                .limit(20)
+                .get();
+
+            const thoughtsContext = thoughtsSnapshot.docs.map(doc => {
+                const d = doc.data();
+                return `- [${d.timestamp?.toDate?.()?.toISOString() || 'Unknown'}] ${d.ai_title || 'Untitled'}: ${d.ai_summary || d.raw_text} (Keywords: ${(d.keywords || []).join(', ')})`;
+            }).join('\n');
+
+            if (!thoughtsContext) {
+                await snap.ref.update({
+                    status: 'completed',
+                    answer: "You don't have any processed thoughts yet. Try recording some thoughts first!"
+                });
+                return null;
+            }
+
+            const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+
+            const prompt = `
+                You are an AI assistant helping a user explore their captured thoughts.
+                
+                User Query: "${userQuery}"
+
+                Here are the user's recent thoughts:
+                ${thoughtsContext}
+
+                Instructions:
+                1. Answer the user's question based ONLY on the provided thoughts.
+                2. If the answer isn't in the thoughts, say so politely.
+                3. Reference specific thoughts by title if relevant.
+                4. Be helpful and conversational.
+                5. Keep your response concise but informative.
+            `;
+
+            const result = await model.generateContent(prompt);
+            const response = await result.response;
+
+            await snap.ref.update({
+                status: 'completed',
+                answer: response.text(),
+                completed_at: admin.firestore.FieldValue.serverTimestamp()
+            });
+
+            console.log(`Processed chat query: ${context.params.queryId}`);
+            return null;
+
+        } catch (error) {
+            console.error("Error processing chat query:", error);
+            await snap.ref.update({
+                status: 'failed',
+                error: error.message
+            });
+            return null;
+        }
+    });
+
+// 3. Batch Process (Firestore Trigger) - Processes batch requests written to Firestore
+exports.processBatchRequest = functions.firestore
+    .document("batch_requests/{requestId}")
+    .onCreate(async (snap, context) => {
+        const data = snap.data();
+        const userId = data.userId;
+
+        if (!userId) {
+            await snap.ref.update({ status: 'failed', error: 'Missing userId' });
+            return null;
         }
 
-        const uid = decodedToken.uid;
         const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
-        // Get all pending thoughts
-        const pendingSnapshot = await db.collection('user_thoughts')
-            .where('ai_status', '==', 'pending')
-            .get();
+        try {
+            // Get all pending thoughts (not filtered by userId to catch legacy ones)
+            const pendingSnapshot = await db.collection('user_thoughts')
+                .where('ai_status', '==', 'pending')
+                .get();
 
-        let processed = 0;
-        let failed = 0;
+            let processed = 0;
+            let failed = 0;
 
-        for (const doc of pendingSnapshot.docs) {
-            const docData = doc.data();
-            const rawText = docData.raw_text;
-            if (!rawText) continue;
+            for (const doc of pendingSnapshot.docs) {
+                const docData = doc.data();
+                const rawText = docData.raw_text;
+                if (!rawText) continue;
 
-            try {
-                const prompt = `
-                    Analyze the following raw thought and extract structured metadata.
-                    Return ONLY a JSON object with these fields:
-                    - ai_title: A concise, catchy title (max 60 chars)
-                    - ai_summary: A 2-3 sentence summary of the core idea
-                    - keywords: An array of 3-5 relevant tags/keywords
+                try {
+                    const prompt = `
+                        Analyze the following raw thought and extract structured metadata.
+                        Return ONLY a JSON object with these fields:
+                        - ai_title: A concise, catchy title (max 60 chars)
+                        - ai_summary: A 2-3 sentence summary of the core idea
+                        - keywords: An array of 3-5 relevant tags/keywords
 
-                    Raw Thought: "${rawText}"
-                `;
+                        Raw Thought: "${rawText}"
+                    `;
 
-                const result = await model.generateContent(prompt);
-                const response = await result.response;
-                const text = response.text();
+                    const result = await model.generateContent(prompt);
+                    const response = await result.response;
+                    const text = response.text();
 
-                const jsonStr = text.replace(/```json/g, '').replace(/```/g, '').trim();
-                const aiData = JSON.parse(jsonStr);
+                    const jsonStr = text.replace(/```json/g, '').replace(/```/g, '').trim();
+                    const aiData = JSON.parse(jsonStr);
 
-                const updateData = {
-                    ai_title: aiData.ai_title,
-                    ai_summary: aiData.ai_summary,
-                    keywords: aiData.keywords,
-                    ai_status: 'processed',
-                    processed_at: admin.firestore.FieldValue.serverTimestamp()
-                };
+                    const updateData = {
+                        ai_title: aiData.ai_title,
+                        ai_summary: aiData.ai_summary,
+                        keywords: aiData.keywords,
+                        ai_status: 'processed',
+                        processed_at: admin.firestore.FieldValue.serverTimestamp()
+                    };
 
-                if (!docData.userId) {
-                    updateData.userId = uid;
+                    // Assign userId to legacy docs
+                    if (!docData.userId) {
+                        updateData.userId = userId;
+                    }
+
+                    await doc.ref.update(updateData);
+                    processed++;
+                    console.log(`Batch processed thought ${doc.id}`);
+
+                } catch (error) {
+                    console.error(`Error batch processing thought ${doc.id}:`, error);
+                    await doc.ref.update({
+                        ai_status: 'failed',
+                        error_message: error.message
+                    });
+                    failed++;
                 }
-
-                await doc.ref.update(updateData);
-                processed++;
-                console.log(`Processed thought ${doc.id}`);
-
-            } catch (error) {
-                console.error(`Error processing thought ${doc.id}:`, error);
-                await doc.ref.update({
-                    ai_status: 'failed',
-                    error_message: error.message
-                });
-                failed++;
             }
+
+            await snap.ref.update({
+                status: 'completed',
+                processed: processed,
+                failed: failed,
+                message: `Processed ${processed} thoughts. ${failed} failed.`,
+                completed_at: admin.firestore.FieldValue.serverTimestamp()
+            });
+
+            console.log(`Batch request completed: ${processed} processed, ${failed} failed`);
+            return null;
+
+        } catch (error) {
+            console.error("Error in batch processing:", error);
+            await snap.ref.update({
+                status: 'failed',
+                error: error.message
+            });
+            return null;
         }
-
-        res.json({ data: { message: `Processed ${processed} thoughts. ${failed} failed.` } });
-
-    } catch (error) {
-        console.error("Batch processing error:", error);
-        res.status(500).json({ error: error.message });
-    }
-});
+    });

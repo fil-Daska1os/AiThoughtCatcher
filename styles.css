@@ -26,18 +26,20 @@ body {
     background-color: var(--bg-color);
     color: var(--text-primary);
     height: 100vh;
-    overflow: hidden; /* App-like feel */
+    overflow: hidden;
+    /* App-like feel */
 }
 
 .app-container {
     display: flex;
     flex-direction: column;
     height: 100%;
-    max-width: 600px; /* Mobile constraint on desktop */
+    max-width: 600px;
+    /* Mobile constraint on desktop */
     margin: 0 auto;
     background-color: var(--bg-color);
     position: relative;
-    box-shadow: 0 0 40px rgba(0,0,0,0.5);
+    box-shadow: 0 0 40px rgba(0, 0, 0, 0.5);
 }
 
 /* Header */
@@ -49,7 +51,7 @@ body {
     background: var(--surface-color-transparent);
     backdrop-filter: blur(10px);
     z-index: 10;
-    border-bottom: 1px solid rgba(255,255,255,0.05);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .logo {
@@ -78,7 +80,7 @@ body {
 
 .icon-btn:hover {
     color: var(--text-primary);
-    background-color: rgba(255,255,255,0.1);
+    background-color: rgba(255, 255, 255, 0.1);
 }
 
 /* Main Content */
@@ -86,7 +88,8 @@ body {
     flex: 1;
     overflow-y: auto;
     padding: 20px;
-    padding-bottom: 100px; /* Space for mic button */
+    padding-bottom: 100px;
+    /* Space for mic button */
 }
 
 .thought-feed {
@@ -107,7 +110,7 @@ body {
     background-color: var(--surface-color);
     border-radius: var(--border-radius);
     padding: 16px;
-    border: 1px solid rgba(255,255,255,0.05);
+    border: 1px solid rgba(255, 255, 255, 0.05);
     transition: transform 0.2s;
 }
 
@@ -130,6 +133,36 @@ body {
 .thought-time {
     font-size: 0.8rem;
     color: var(--text-secondary);
+}
+
+.thought-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.delete-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    opacity: 0;
+    transition: all 0.2s;
+}
+
+.delete-btn .material-icons-round {
+    font-size: 18px;
+}
+
+.thought-card:hover .delete-btn {
+    opacity: 1;
+}
+
+.delete-btn:hover {
+    color: var(--error-color);
+    background-color: rgba(231, 76, 60, 0.1);
 }
 
 .thought-summary {
@@ -165,7 +198,8 @@ body {
     align-items: center;
     gap: 16px;
     z-index: 20;
-    pointer-events: none; /* Let clicks pass through around button */
+    pointer-events: none;
+    /* Let clicks pass through around button */
 }
 
 .mic-button {
@@ -199,7 +233,7 @@ body {
 }
 
 .recording-status {
-    background-color: rgba(0,0,0,0.8);
+    background-color: rgba(0, 0, 0, 0.8);
     padding: 8px 16px;
     border-radius: 20px;
     color: white;
@@ -216,9 +250,17 @@ body {
 }
 
 @keyframes pulse {
-    0% { box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.4); }
-    70% { box-shadow: 0 0 0 20px rgba(231, 76, 60, 0); }
-    100% { box-shadow: 0 0 0 0 rgba(231, 76, 60, 0); }
+    0% {
+        box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.4);
+    }
+
+    70% {
+        box-shadow: 0 0 0 20px rgba(231, 76, 60, 0);
+    }
+
+    100% {
+        box-shadow: 0 0 0 0 rgba(231, 76, 60, 0);
+    }
 }
 
 /* Chat Drawer */
@@ -227,7 +269,8 @@ body {
     top: 0;
     right: 0;
     bottom: 0;
-    width: 100%; /* Full width on mobile */
+    width: 100%;
+    /* Full width on mobile */
     background-color: var(--bg-color);
     transform: translateX(100%);
     transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -242,7 +285,7 @@ body {
 
 .chat-header {
     padding: 20px;
-    border-bottom: 1px solid rgba(255,255,255,0.05);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -289,7 +332,7 @@ body {
 
 #chat-input {
     flex: 1;
-    background-color: rgba(255,255,255,0.05);
+    background-color: rgba(255, 255, 255, 0.05);
     border: none;
     padding: 12px 16px;
     border-radius: 24px;
@@ -310,9 +353,9 @@ body {
     height: 56px;
     border-radius: 50%;
     background-color: var(--surface-color);
-    border: 1px solid rgba(255,255,255,0.1);
+    border: 1px solid rgba(255, 255, 255, 0.1);
     color: var(--primary-color);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -327,7 +370,7 @@ body {
     left: 0;
     right: 0;
     bottom: 0;
-    background-color: rgba(0,0,0,0.8);
+    background-color: rgba(0, 0, 0, 0.8);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -360,8 +403,8 @@ body {
 select {
     width: 100%;
     padding: 10px;
-    background-color: rgba(255,255,255,0.05);
-    border: 1px solid rgba(255,255,255,0.1);
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
     color: white;
     border-radius: 8px;
 }
@@ -377,4 +420,38 @@ select {
     font-weight: 600;
     cursor: pointer;
     padding: 8px 16px;
+}
+
+.btn-danger {
+    background: var(--error-color);
+    border: none;
+    color: white;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 8px 16px;
+    border-radius: 8px;
+    transition: background 0.2s;
+}
+
+.btn-danger:hover {
+    background: #c0392b;
+}
+
+.delete-confirm {
+    text-align: center;
+}
+
+.delete-confirm h3 {
+    margin-bottom: 8px;
+}
+
+.delete-confirm p {
+    color: var(--text-secondary);
+    margin-bottom: 20px;
+}
+
+.delete-confirm .modal-actions {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
 }
