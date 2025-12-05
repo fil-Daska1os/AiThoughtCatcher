@@ -57,44 +57,91 @@ const signoutBtn = document.getElementById('signout-btn');
 const googleProvider = new GoogleAuthProvider();
 
 // State
+// State
 let isRecording = false;
 let recognition = null;
+let finalTranscript = '';
+let lastSpeechTime = 0;
 
 // Initialize Speech Recognition
 if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     recognition = new SpeechRecognition();
-    recognition.continuous = false;
+    recognition.continuous = true;
     recognition.interimResults = true;
     recognition.lang = 'en-US';
 
     recognition.onstart = () => {
         isRecording = true;
+        finalTranscript = '';
+        lastSpeechTime = Date.now();
         updateRecordingUI(true);
     };
 
     recognition.onend = () => {
         isRecording = false;
         updateRecordingUI(false);
+        if (finalTranscript.trim()) {
+            saveThought(finalTranscript);
+        }
     };
 
     recognition.onresult = (event) => {
-        const transcript = Array.from(event.results)
-            .map(result => result[0].transcript)
-            .join('');
+        let interimTranscript = '';
+        const now = Date.now();
 
-        statusText.textContent = transcript || "Listening...";
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+            let chunk = event.results[i][0].transcript;
 
-        if (event.results[0].isFinal) {
-            saveThought(transcript);
+            // Normalize keywords (case insensitive)
+            chunk = chunk.replace(/ comma/gi, ',');
+            chunk = chunk.replace(/ full stop/gi, '.');
+            chunk = chunk.replace(/ period/gi, '.');
+
+            if (event.results[i].isFinal) {
+                // Pause detection logic
+                const timeSinceLast = now - lastSpeechTime;
+
+                // Only add punctuation if it's not the very first chunk
+                if (finalTranscript.length > 0) {
+                    if (timeSinceLast > 5000) {
+                        // > 5 seconds: Full stop (if not already there)
+                        if (!finalTranscript.trim().endsWith('.')) {
+                            finalTranscript += '. ';
+                        }
+                    } else if (timeSinceLast > 3000) {
+                        // > 3 seconds: Comma (if not already ending in punctuation)
+                        if (!/[.,!?]$/.test(finalTranscript.trim())) {
+                            finalTranscript += ', ';
+                        }
+                    } else {
+                        // Normal spacing
+                        finalTranscript += ' ';
+                    }
+                }
+
+                // Capitalize first letter if previous was full stop or start
+                if (finalTranscript.length === 0 || finalTranscript.trim().endsWith('.')) {
+                    chunk = chunk.charAt(0).toUpperCase() + chunk.slice(1);
+                }
+
+                finalTranscript += chunk;
+                lastSpeechTime = now;
+            } else {
+                interimTranscript += chunk;
+            }
         }
+
+        statusText.textContent = finalTranscript + interimTranscript || "Listening...";
     };
 
     recognition.onerror = (event) => {
         console.error("Speech recognition error", event.error);
-        isRecording = false;
-        updateRecordingUI(false);
-        statusText.textContent = "Error: " + event.error;
+        if (event.error !== 'no-speech') {
+            isRecording = false;
+            updateRecordingUI(false);
+            statusText.textContent = "Error: " + event.error;
+        }
     };
 } else {
     alert("Voice capture is not supported in this browser. Please use Chrome or Safari.");
@@ -105,7 +152,7 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
 micButton.addEventListener('click', () => {
     if (!recognition) return;
     if (isRecording) {
-        recognition.stop();
+        recognition.stop(); // This triggers onend, which saves the thought
     } else {
         recognition.start();
     }
