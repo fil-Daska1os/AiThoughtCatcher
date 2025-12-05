@@ -1,7 +1,7 @@
 // Import Firebase SDKs
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getFirestore, collection, addDoc, query, where, orderBy, onSnapshot, serverTimestamp, updateDoc, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { getAuth, signInAnonymously, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-functions.js";
 
 // Firebase Configuration (Placeholder - User needs to fill this)
@@ -40,6 +40,21 @@ const settingsBtn = document.getElementById('settings-btn');
 const settingsModal = document.getElementById('settings-modal');
 const closeSettingsBtn = document.getElementById('close-settings-btn');
 const batchProcessBtn = document.getElementById('batch-process-btn');
+
+// Login Elements
+const loginScreen = document.getElementById('login-screen');
+const googleSignInBtn = document.getElementById('google-signin-btn');
+const userProfileBtn = document.getElementById('user-profile-btn');
+const userAvatar = document.getElementById('user-avatar');
+const userInitial = document.getElementById('user-initial');
+const userMenu = document.getElementById('user-menu');
+const menuUserAvatar = document.getElementById('menu-user-avatar');
+const menuUserName = document.getElementById('menu-user-name');
+const menuUserEmail = document.getElementById('menu-user-email');
+const signoutBtn = document.getElementById('signout-btn');
+
+// Auth Provider
+const googleProvider = new GoogleAuthProvider();
 
 // State
 let isRecording = false;
@@ -196,11 +211,70 @@ if (auth) {
     onAuthStateChanged(auth, (user) => {
         if (user) {
             currentUser = user;
+            loginScreen.classList.add('hidden');
+            updateUserProfile(user);
             subscribeToThoughts(user.uid);
         } else {
-            signInAnonymously(auth).catch(console.error);
+            // Show login screen
+            loginScreen.classList.remove('hidden');
+            thoughtFeed.innerHTML = '';
         }
     });
+}
+
+// Google Sign-In
+googleSignInBtn.addEventListener('click', async () => {
+    try {
+        await signInWithPopup(auth, googleProvider);
+    } catch (error) {
+        console.error('Sign-in error:', error);
+        if (error.code !== 'auth/popup-closed-by-user') {
+            alert('Sign-in failed: ' + error.message);
+        }
+    }
+});
+
+// Sign Out
+signoutBtn.addEventListener('click', async () => {
+    try {
+        await signOut(auth);
+        userMenu.classList.add('hidden');
+    } catch (error) {
+        console.error('Sign-out error:', error);
+    }
+});
+
+// User Profile Button
+userProfileBtn.addEventListener('click', () => {
+    userMenu.classList.toggle('hidden');
+});
+
+// Close user menu when clicking outside
+document.addEventListener('click', (e) => {
+    if (!userProfileBtn.contains(e.target) && !userMenu.contains(e.target)) {
+        userMenu.classList.add('hidden');
+    }
+});
+
+// Update user profile UI
+function updateUserProfile(user) {
+    const photoURL = user.photoURL;
+    const displayName = user.displayName || 'User';
+    const email = user.email || '';
+
+    if (photoURL) {
+        userAvatar.src = photoURL;
+        userAvatar.classList.remove('hidden');
+        userInitial.textContent = '';
+        menuUserAvatar.src = photoURL;
+    } else {
+        userAvatar.classList.add('hidden');
+        userInitial.textContent = displayName.charAt(0).toUpperCase();
+        menuUserAvatar.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=6C63FF&color=fff`;
+    }
+
+    menuUserName.textContent = displayName;
+    menuUserEmail.textContent = email;
 }
 
 function subscribeToThoughts(userId) {

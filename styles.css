@@ -455,3 +455,204 @@ select {
     justify-content: center;
     gap: 12px;
 }
+
+/* Login Screen */
+.login-screen {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, #0f1016 0%, #1a1b2e 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    transition: opacity 0.3s, visibility 0.3s;
+}
+
+.login-screen.hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+}
+
+.login-content {
+    text-align: center;
+    padding: 40px;
+}
+
+.login-logo {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.login-logo .material-icons-round {
+    font-size: 64px;
+    color: var(--primary-color);
+}
+
+.login-logo h1 {
+    font-family: var(--font-main);
+    font-size: 2rem;
+    font-weight: 700;
+}
+
+.login-subtitle {
+    color: var(--text-secondary);
+    margin-bottom: 40px;
+    font-size: 1.1rem;
+}
+
+.login-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 24px;
+}
+
+.login-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 14px 24px;
+    border-radius: 12px;
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    border: none;
+    min-width: 280px;
+}
+
+.login-btn:hover {
+    transform: translateY(-2px);
+}
+
+.login-btn:active {
+    transform: scale(0.98);
+}
+
+.login-btn.google {
+    background: white;
+    color: #333;
+}
+
+.login-btn.google:hover {
+    box-shadow: 0 4px 12px rgba(255, 255, 255, 0.2);
+}
+
+.login-info {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+}
+
+/* User Profile Button */
+.user-profile-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 2px solid var(--primary-color);
+    background: var(--surface-color);
+    cursor: pointer;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+}
+
+.user-avatar {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.user-avatar.hidden {
+    display: none;
+}
+
+.user-initial {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--primary-color);
+}
+
+/* User Menu Dropdown */
+.user-menu {
+    position: absolute;
+    top: 70px;
+    right: 20px;
+    background: var(--surface-color);
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    z-index: 50;
+    min-width: 240px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.user-menu.hidden {
+    display: none;
+}
+
+.user-menu-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+}
+
+.menu-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.user-menu-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.user-name {
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+
+.user-email {
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+}
+
+.user-menu-divider {
+    height: 1px;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.user-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 14px 16px;
+    background: none;
+    border: none;
+    color: var(--text-primary);
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.user-menu-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.user-menu-item .material-icons-round {
+    font-size: 20px;
+    color: var(--text-secondary);
+}
