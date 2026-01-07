@@ -13,11 +13,13 @@
     },
     "main": "index.js",
     "dependencies": {
-        "@google/generative-ai": "^0.21.0",
+        "@google/generative-ai": "^0.24.1",
+        "@types/markdown-it": "^14.1.2",
+        "acorn": "^8.15.0",
         "cors": "^2.8.5",
-        "express": "^5.2.1",
         "firebase-admin": "^11.8.0",
-        "firebase-functions": "^4.9.0"
+        "firebase-functions": "^4.3.1",
+        "markdown-it": "^14.1.0"
     },
     "private": true
 }
