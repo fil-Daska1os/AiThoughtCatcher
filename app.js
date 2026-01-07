@@ -217,3 +217,57 @@ function createThoughtElement(data) {
     `;
     return div;
 }
+// Chat Logic
+// Chat Logic (Integrated)
+const chatInput = document.getElementById('chat-input');
+const sendChatBtn = document.getElementById('send-chat-btn');
+const chatMessages = document.getElementById('chat-messages');
+
+sendChatBtn.addEventListener('click', sendMessage);
+chatInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') sendMessage();
+});
+
+async function sendMessage() {
+    const text = chatInput.value.trim();
+    if (!text) return;
+
+    // Add User Message
+    addMessage(text, 'user');
+    chatInput.value = '';
+
+    // Show loading state
+    const loadingId = addMessage('Thinking...', 'system');
+
+    try {
+        const queryThoughts = httpsCallable(functions, 'queryThoughts');
+        const result = await queryThoughts({ query: text });
+
+        // Remove loading state
+        const loadingEl = document.querySelector(`[data-id="${loadingId}"]`);
+        if (loadingEl) loadingEl.remove();
+
+        const answer = result.data.answer || result.data.message || "No answer returned.";
+        addMessage(answer, 'system');
+
+    } catch (error) {
+        console.error("Chat error:", error);
+
+        const loadingEl = document.querySelector(`[data-id="${loadingId}"]`);
+        if (loadingEl) loadingEl.remove();
+
+        const errorMsg = error.message || "Unknown error";
+        addMessage(`Sorry, I encountered an error: ${errorMsg}`, 'system');
+    }
+}
+
+function addMessage(text, type) {
+    const div = document.createElement('div');
+    div.className = `message ${type}`;
+    div.textContent = text;
+    const id = Date.now().toString();
+    div.setAttribute('data-id', id);
+    chatMessages.appendChild(div);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    return id;
+}
